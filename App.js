@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
@@ -15,7 +14,6 @@ import { StatusBar } from "expo-status-bar";
 
 const categories = ["Wszystkie", "Nauka", "Sport", "Muzyka", "Film"];
 const bioLimit = 140;
-const postsEndpoint = "https://jsonplaceholder.typicode.com/posts";
 
 const initialEvents = [
   {
@@ -143,34 +141,16 @@ export default function App() {
             Profil
           </Text>
         </Pressable>
-        <Pressable
-          onPress={() => setActiveScreen("api")}
-          style={[
-            styles.screenTab,
-            activeScreen === "api" && { backgroundColor: theme.primary }
-          ]}
-        >
-          <Text
-            style={[
-              styles.screenTabText,
-              { color: activeScreen === "api" ? "#ffffff" : theme.text }
-            ]}
-          >
-            API
-          </Text>
-        </Pressable>
       </View>
 
       {activeScreen === "events" ? (
         <EventCatalog theme={theme} />
-      ) : activeScreen === "profile" ? (
+      ) : (
         <UserPanel
           theme={theme}
           darkMode={darkMode}
           onToggleTheme={() => setDarkMode((value) => !value)}
         />
-      ) : (
-        <ApiPostsScreen theme={theme} />
       )}
     </SafeAreaView>
   );
@@ -532,272 +512,6 @@ function UserPanel({ theme, darkMode, onToggleTheme }) {
   );
 }
 
-function ApiPostsScreen({ theme }) {
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [success, setSuccess] = useState("");
-  const [createdPost, setCreatedPost] = useState(null);
-  const [userFilter, setUserFilter] = useState("");
-  const [form, setForm] = useState({
-    title: "Nowy post z aplikacji Expo",
-    body: "To jest test wysylania danych JSON metoda POST.",
-    userId: "7"
-  });
-
-  const fetchPosts = async (signal) => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const response = await fetch(postsEndpoint, { signal });
-
-      if (!response.ok) {
-        throw new Error(`Blad HTTP przy pobieraniu: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setPosts(data);
-    } catch (requestError) {
-      if (requestError.name === "AbortError") return;
-      setError(requestError.message || "Nie udalo sie pobrac postow.");
-    } finally {
-      if (signal?.aborted) return;
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchPosts(controller.signal);
-
-    return () => controller.abort();
-  }, []);
-
-  const updatePostField = (field, value) => {
-    setForm((currentForm) => ({ ...currentForm, [field]: value }));
-  };
-
-  const createPost = async () => {
-    const title = form.title.trim();
-    const body = form.body.trim();
-    const userId = Number(form.userId);
-
-    setSuccess("");
-    setError("");
-
-    if (!title || !body || !form.userId.trim()) {
-      setError("Uzupelnij pola title, body i userId.");
-      return;
-    }
-
-    if (!Number.isInteger(userId) || userId <= 0) {
-      setError("userId musi byc dodatnia liczba calkowita.");
-      return;
-    }
-
-    try {
-      setPosting(true);
-
-      const response = await fetch(postsEndpoint, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          title,
-          body,
-          userId
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Blad HTTP przy zapisie: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setCreatedPost(data);
-      setPosts((currentPosts) => [data, ...currentPosts]);
-      setForm({ title: "", body: "", userId: "" });
-      setSuccess("Post zostal wyslany. API testowe zwrocilo odpowiedz serwera.");
-    } catch (requestError) {
-      setError(requestError.message || "Nie udalo sie wyslac posta.");
-    } finally {
-      setPosting(false);
-    }
-  };
-
-  const filteredPosts = useMemo(() => {
-    if (!userFilter.trim()) return posts;
-
-    return posts.filter((post) => String(post.userId) === userFilter.trim());
-  }, [posts, userFilter]);
-
-  return (
-    <View style={styles.screen}>
-      <FlatList
-        data={filteredPosts}
-        keyExtractor={(item) => String(item.id)}
-        ItemSeparatorComponent={() => <View style={styles.listGap} />}
-        ListHeaderComponent={
-          <View>
-            <View style={styles.header}>
-              <Text style={[styles.kicker, { color: theme.primary }]}>Zadanie 3</Text>
-              <Text style={[styles.heading, { color: theme.text }]}>Posty z REST API</Text>
-              <Text style={[styles.lead, { color: theme.muted }]}>
-                GET i POST dla /posts, JSON, loading, error oraz lista FlatList.
-              </Text>
-              <Text style={[styles.authorLine, { color: theme.muted }]}>
-                Autor: Wiktor Gałązka
-              </Text>
-            </View>
-
-            <View style={[styles.apiPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={styles.apiRow}>
-                <View style={styles.apiTextBlock}>
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Pobieranie danych</Text>
-                  <Text style={[styles.apiEndpoint, { color: theme.muted }]}>
-                    GET {postsEndpoint}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => fetchPosts()}
-                  disabled={loading}
-                  style={[
-                    styles.reloadButton,
-                    { backgroundColor: loading ? theme.surfaceSoft : theme.primary }
-                  ]}
-                >
-                  <Text style={styles.reloadButtonText}>Odswiez</Text>
-                </Pressable>
-              </View>
-
-              {loading ? (
-                <View style={styles.loadingBox}>
-                  <ActivityIndicator color={theme.primary} />
-                  <Text style={[styles.loadingText, { color: theme.muted }]}>Ladowanie danych...</Text>
-                </View>
-              ) : (
-                <Text style={[styles.resultCount, { color: theme.text }]}>
-                  Liczba rekordow: {filteredPosts.length}
-                </Text>
-              )}
-
-              <TextInput
-                value={userFilter}
-                onChangeText={setUserFilter}
-                placeholder="Rozszerzenie: filtruj po userId"
-                placeholderTextColor={theme.muted}
-                keyboardType="numeric"
-                style={[
-                  styles.input,
-                  styles.apiFilterInput,
-                  { backgroundColor: theme.surfaceSoft, borderColor: theme.border, color: theme.text }
-                ]}
-              />
-            </View>
-
-            <View style={[styles.apiPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>Nowy post</Text>
-              <Text style={[styles.apiEndpoint, { color: theme.muted }]}>
-                POST {postsEndpoint}
-              </Text>
-              <LabeledInput
-                label="title"
-                value={form.title}
-                onChangeText={(text) => updatePostField("title", text)}
-                theme={theme}
-              />
-              <LabeledInput
-                label="body"
-                value={form.body}
-                onChangeText={(text) => updatePostField("body", text)}
-                multiline
-                theme={theme}
-              />
-              <LabeledInput
-                label="userId"
-                value={form.userId}
-                onChangeText={(text) => updatePostField("userId", text)}
-                keyboardType="numeric"
-                theme={theme}
-              />
-              <Pressable
-                onPress={createPost}
-                disabled={posting}
-                style={[
-                  styles.saveButton,
-                  { backgroundColor: posting ? theme.surfaceSoft : theme.primary }
-                ]}
-              >
-                <Text style={styles.saveButtonText}>
-                  {posting ? "Wysylanie..." : "Wyslij"}
-                </Text>
-              </Pressable>
-
-              {error ? (
-                <View style={[styles.messageBox, { borderColor: theme.danger, backgroundColor: "#fff1f0" }]}>
-                  <Text style={[styles.messageText, { color: theme.danger }]}>{error}</Text>
-                </View>
-              ) : null}
-
-              {success ? (
-                <View style={[styles.messageBox, { borderColor: theme.success, backgroundColor: "#edf9f1" }]}>
-                  <Text style={[styles.messageText, { color: theme.success }]}>{success}</Text>
-                </View>
-              ) : null}
-
-              {createdPost ? (
-                <View style={[styles.responseBox, { backgroundColor: theme.surfaceSoft, borderColor: theme.border }]}>
-                  <Text style={[styles.responseTitle, { color: theme.text }]}>Odpowiedz serwera</Text>
-                  <Text style={[styles.responseText, { color: theme.muted }]}>
-                    id: {createdPost.id} | userId: {createdPost.userId}
-                  </Text>
-                  <Text style={[styles.responseText, { color: theme.text }]}>
-                    {createdPost.title}
-                  </Text>
-                  <Text style={[styles.responseText, { color: theme.muted }]}>
-                    {createdPost.body}
-                  </Text>
-                </View>
-              ) : null}
-
-              <Text style={[styles.listTitle, { color: theme.text }]}>Lista postow</Text>
-            </View>
-          </View>
-        }
-        ListEmptyComponent={
-          !loading ? (
-            <View style={[styles.emptyBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.emptyTitle, { color: theme.text }]}>Brak postow</Text>
-              <Text style={[styles.emptyText, { color: theme.muted }]}>
-                Zmien filtr albo sprobuj odswiezyc dane.
-              </Text>
-            </View>
-          ) : null
-        }
-        renderItem={({ item }) => <PostCard post={item} theme={theme} />}
-        contentContainerStyle={styles.apiList}
-      />
-    </View>
-  );
-}
-
-function PostCard({ post, theme }) {
-  return (
-    <View style={[styles.postCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <View style={styles.cardTopRow}>
-        <Text style={[styles.postId, { color: theme.primary }]}>#{post.id}</Text>
-        <Text style={[styles.cardMeta, { color: theme.muted }]}>userId: {post.userId}</Text>
-      </View>
-      <Text style={[styles.cardTitle, { color: theme.text }]}>{post.title}</Text>
-      <Text style={[styles.postBody, { color: theme.muted }]}>{post.body}</Text>
-    </View>
-  );
-}
-
 function LabeledInput({ label, theme, multiline = false, ...inputProps }) {
   return (
     <View style={styles.field}>
@@ -889,11 +603,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 15,
     lineHeight: 21
-  },
-  authorLine: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: "800"
   },
   input: {
     minHeight: 48,
@@ -1112,90 +821,6 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 14,
     fontWeight: "800"
-  },
-  apiList: {
-    paddingBottom: 28
-  },
-  apiPanel: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 14
-  },
-  apiRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12
-  },
-  apiTextBlock: {
-    flex: 1
-  },
-  apiEndpoint: {
-    marginBottom: 12,
-    fontSize: 12,
-    fontWeight: "700"
-  },
-  apiFilterInput: {
-    marginTop: 12
-  },
-  reloadButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 42,
-    minWidth: 88,
-    borderRadius: 8,
-    paddingHorizontal: 12
-  },
-  reloadButtonText: {
-    color: "#ffffff",
-    fontSize: 13,
-    fontWeight: "800"
-  },
-  loadingBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    minHeight: 34
-  },
-  loadingText: {
-    fontSize: 14,
-    fontWeight: "700"
-  },
-  responseBox: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 12
-  },
-  responseTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    marginBottom: 6
-  },
-  responseText: {
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 18
-  },
-  listTitle: {
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: "800"
-  },
-  postCard: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 16
-  },
-  postId: {
-    fontSize: 14,
-    fontWeight: "900"
-  },
-  postBody: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 20
   },
   settingsRow: {
     minHeight: 64,
